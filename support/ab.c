@@ -355,6 +355,7 @@ char *ssl_cipher = NULL;
 char *ssl_info = NULL;
 char *ssl_cert = NULL;
 char *ssl_key = NULL;
+char *ssl_cacert = NULL;
 #if OPENSSL_VERSION_NUMBER >= 0x10002000L
 char *ssl_tmp_key = NULL;
 #endif
@@ -2174,6 +2175,7 @@ static void usage(const char *progname)
     fprintf(stderr, "                    (" SSL2_HELP_MSG SSL3_HELP_MSG "TLS1" TLS1_X_HELP_MSG " or ALL)\n");
     fprintf(stderr, "    -E certfile     Specify optional client certificate chain\n");
     fprintf(stderr, "    -K privatekey   Specify optional client private key\n");
+    fprintf(stderr, "    -O cacert       Specify optional ca certificate chain\n");
   #endif
     exit(EINVAL);
 }
@@ -2344,7 +2346,7 @@ int main(int argc, const char * const argv[])
     apr_getopt_init(&opt, cntxt, argc, argv);
     while ((status = apr_getopt(opt, "n:c:t:s:b:T:p:u:v:lrkVhwiIx:y:z:C:H:P:A:g:X:de:SqB:m:"
 #ifdef USE_SSL
-            "Z:f:E:K:"
+            "Z:f:E:K:O:"
 #endif
             ,&c, &opt_arg)) == APR_SUCCESS) {
         switch (c) {
@@ -2534,6 +2536,9 @@ int main(int argc, const char * const argv[])
             case 'K':
                 ssl_key = strdup(opt_arg);
                 break;
+            case 'O':
+                ssl_cacert = strdup(opt_arg);
+                break;
             case 'f':
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
                 if (strncasecmp(opt_arg, "ALL", 3) == 0) {
@@ -2669,17 +2674,24 @@ int main(int argc, const char * const argv[])
         SSL_CTX_set_info_callback(ssl_ctx, ssl_state_cb);
     }
     if (ssl_cert != NULL) {
+        if (ssl_key == NULL || ssl_cacert == NULL) {
+            BIO_printf(bio_err, "unable to get private key or ca chain cert, please use -K  and -O optional'\n");
+            ERR_print_errors(bio_err);
+            exit(1);
+        }
+        if (SSL_CTX_load_verify_locations(ssl_ctx, ssl_cacert, NULL) <= 0) {
+            BIO_printf(bio_err, "unable to get ca chain certificate from '%s'\n",
+            		ssl_cacert);
+            ERR_print_errors(bio_err);
+            exit(1);
+        }
         if (SSL_CTX_use_certificate_chain_file(ssl_ctx, ssl_cert) <= 0) {
             BIO_printf(bio_err, "unable to get certificate from '%s'\n",
             		ssl_cert);
             ERR_print_errors(bio_err);
             exit(1);
         }
-        if (ssl_key == NULL) {
-            BIO_printf(bio_err, "unable to get private key, please use -K optional'\n");
-            ERR_print_errors(bio_err);
-            exit(1);
-        }
+
         if (SSL_CTX_use_PrivateKey_file(ssl_ctx, ssl_key, SSL_FILETYPE_PEM) <= 0) {
             BIO_printf(bio_err, "unable to get private key from '%s'\n",
                 ssl_key);
