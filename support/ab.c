@@ -2675,7 +2675,12 @@ int main(int argc, const char * const argv[])
             ERR_print_errors(bio_err);
             exit(1);
         }
-        if (ssl_key == NULL || SSL_CTX_use_PrivateKey_file(ssl_ctx, ssl_key, SSL_FILETYPE_PEM) <= 0) {
+        if (ssl_key == NULL) {
+            BIO_printf(bio_err, "unable to get private key, please use -K optional'\n");
+            ERR_print_errors(bio_err);
+            exit(1);
+        }
+        if (SSL_CTX_use_PrivateKey_file(ssl_ctx, ssl_key, SSL_FILETYPE_PEM) <= 0) {
             BIO_printf(bio_err, "unable to get private key from '%s'\n",
                 ssl_key);
             ERR_print_errors(bio_err);
